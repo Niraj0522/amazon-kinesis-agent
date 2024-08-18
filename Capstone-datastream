@@ -1,0 +1,70 @@
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.kinesis.AmazonKinesis;
+import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder;
+import com.amazonaws.services.kinesis.model.PutRecordRequest;
+import com.amazonaws.services.kinesis.model.PutRecordResult;
+import org.json.JSONObject;
+
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
+
+public class VehicleDataGenerator {
+    private static final String STREAM_NAME = "YourKinesisStreamName";
+    private static final String ACCESS_KEY = "YourAWSAccessKey";
+    private static final String SECRET_KEY = "YourAWSSecretKey";
+
+    public static void main(String[] args) {
+        List<String> vehicleModels = Arrays.asList("Toyota Corolla", "Honda Civic", "Ford Focus", "Chevrolet Cruze", "BMW 3 Series");
+        Random random = new Random();
+
+        // Create Kinesis client
+        AmazonKinesis kinesisClient = AmazonKinesisClientBuilder.standard()
+                .withRegion(Regions.US_EAST_1) // Change to your region
+                .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(ACCESS_KEY, SECRET_KEY)))
+                .build();
+
+        for (int i = 0; i < 50; i++) {
+            JSONObject vehicleObject = new JSONObject();
+
+            // Generate vehicle ID (empty for every 11th iteration)
+            if ((i + 1) % 11 == 0) {
+                vehicleObject.put("VehicleID", "");
+            } else {
+                vehicleObject.put("VehicleID", random.nextInt(1000));
+            }
+
+            // Randomly select a vehicle model
+            String vehicleModel = vehicleModels.get(random.nextInt(vehicleModels.size()));
+            vehicleObject.put("VehicleModel", vehicleModel);
+
+            // Generate random vehicle speed
+            int vehicleSpeed = random.nextInt(180); // Speed in km/h
+            vehicleObject.put("VehicleSpeed", vehicleSpeed);
+
+            // Generate random longitude and latitude
+            double vehicleLongitude = -180 + (180 - (-180)) * random.nextDouble();
+            double vehicleLatitude = -90 + (90 - (-90)) * random.nextDouble();
+            vehicleObject.put("VehicleLongitude", vehicleLongitude);
+            vehicleObject.put("VehicleLatitude", vehicleLatitude);
+
+            // Send data to Kinesis
+            sendDataToKinesis(kinesisClient, STREAM_NAME, vehicleObject.toString());
+        }
+
+        System.out.println("Data successfully sent to Kinesis stream: " + STREAM_NAME);
+    }
+
+    private static void sendDataToKinesis(AmazonKinesis kinesisClient, String streamName, String data) {
+        PutRecordRequest putRecordRequest = new PutRecordRequest();
+        putRecordRequest.setStreamName(streamName);
+        putRecordRequest.setPartitionKey("partitionKey-" + Math.random()); // Random partition key
+        putRecordRequest.setData(ByteBuffer.wrap(data.getBytes()));
+
+        PutRecordResult putRecordResult = kinesisClient.putRecord(putRecordRequest);
+        System.out.println("Record sent to shard: " + putRecordResult.getShardId());
+    }
+}
